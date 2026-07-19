@@ -27,7 +27,7 @@ async function loadGoogleFont(fontFamily: string, text: string) {
 
 export default async function Image() {
     // Dynamically load the exact Malayalam font buffer for the text we are rendering
-    const fontData = await loadGoogleFont('Noto+Serif', 'Kathalokam Free Malyalam Audio Stories')
+    const fontData = await loadGoogleFont('Montserrat', 'Kathalokam Free Malyalam Audio Stories')
 
     return new ImageResponse(
         (
@@ -42,7 +42,7 @@ export default async function Image() {
                     backgroundColor: '#1B4332',
                     backgroundImage: 'radial-gradient(circle at 25% 25%, rgba(212, 160, 23, 0.15) 0%, transparent 50%), radial-gradient(circle at 75% 75%, rgba(253, 246, 236, 0.08) 0%, transparent 50%)',
                     color: '#FDF6EC',
-                    fontFamily: '"Noto Serif", serif',
+                    fontFamily: "Montserrat",
                     padding: '60px',
                     textAlign: 'center',
                     position: 'relative',
@@ -140,7 +140,7 @@ export default async function Image() {
             ...size,
             fonts: [
                 {
-                    name: 'Noto Serif',
+                    name: 'Montserrat',
                     data: fontData,
                     style: 'normal',
                     weight: 700,
