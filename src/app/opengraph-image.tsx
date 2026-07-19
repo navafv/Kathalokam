@@ -132,7 +132,7 @@ export default async function Image() {
                         textTransform: 'uppercase',
                     }}
                 >
-                    kathalokam.com
+                    kathalokam.vercel.app
                 </div>
             </div>
         ),

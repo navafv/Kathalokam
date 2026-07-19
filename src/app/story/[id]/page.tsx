@@ -39,7 +39,7 @@ export async function generateMetadata(
             title,
             description,
             type: 'article',
-            url: `https://kathalokam.com/story/${id}`,
+            url: `https://kathalokam.vercel.app/story/${id}`,
             siteName: 'കഥാലോകം',
             images: [
                 {
