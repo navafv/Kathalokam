@@ -1,25 +1,36 @@
 import { ImageResponse } from 'next/og'
 
-// Route segment config
 export const runtime = 'edge'
-
-// Image metadata
 export const alt = 'കഥാലോകം — സൗജന്യ മലയാളം ഓഡിയോ കഥകൾ'
-export const size = {
-    width: 1200,
-    height: 630,
-}
+export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
+// Dynamically fetches the active TTF font from Google Fonts API
+async function loadGoogleFont(fontFamily: string, text: string) {
+    const url = `https://fonts.googleapis.com/css2?family=${fontFamily}:wght@700&text=${encodeURIComponent(text)}`
+    const css = await (await fetch(url, {
+        headers: {
+            // Using an older User-Agent forces Google Fonts to return standard TrueType (.ttf) format required by Satori/OG
+            'User-Agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; de-at) AppleWebKit/533.21.1 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1',
+        },
+    })).text()
+
+    const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/)
+    if (resource) {
+        const response = await fetch(resource[1])
+        if (response.status === 200) {
+            return await response.arrayBuffer()
+        }
+    }
+    throw new Error('Failed to load font data from Google Fonts API')
+}
+
 export default async function Image() {
-    // Fetch Noto Serif Malayalam from Google Fonts for authentic typography in the image
-    const fontData = await fetch(
-        new URL('https://fonts.gstatic.com/s/notoserifmalayalam/v21/0nkoC9D2W31u1H0fS_Vf3Zf3ePZZYgGv7H-s5Q.ttf', import.meta.url)
-    ).then((res) => res.arrayBuffer())
+    // Dynamically load the exact Malayalam font buffer for the text we are rendering
+    const fontData = await loadGoogleFont('Noto+Serif+Malayalam', 'കഥാലോകം സൗജന്യ മലയാളം ഓഡിയോ കഥകൾ')
 
     return new ImageResponse(
         (
-            // ImageResponse JSX element (styled with Satori-compatible Flexbox properties)
             <div
                 style={{
                     height: '100%',
@@ -28,16 +39,15 @@ export default async function Image() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: '#1B4332', // Brand Deep Forest Green
+                    backgroundColor: '#1B4332',
                     backgroundImage: 'radial-gradient(circle at 25% 25%, rgba(212, 160, 23, 0.15) 0%, transparent 50%), radial-gradient(circle at 75% 75%, rgba(253, 246, 236, 0.08) 0%, transparent 50%)',
-                    color: '#FDF6EC', // Brand Cream
+                    color: '#FDF6EC',
                     fontFamily: '"Noto Serif Malayalam", serif',
                     padding: '60px',
                     textAlign: 'center',
                     position: 'relative',
                 }}
             >
-                {/* Top Decorative Border Accent */}
                 <div
                     style={{
                         position: 'absolute',
@@ -45,11 +55,10 @@ export default async function Image() {
                         left: 0,
                         right: 0,
                         height: '8px',
-                        backgroundColor: '#D4A017', // Brand Gold
+                        backgroundColor: '#D4A017',
                     }}
                 />
 
-                {/* Cover Emoji / Logo Circle */}
                 <div
                     style={{
                         display: 'flex',
@@ -68,7 +77,6 @@ export default async function Image() {
                     📖
                 </div>
 
-                {/* Main Malayalam Title */}
                 <div
                     style={{
                         fontSize: '84px',
@@ -82,11 +90,10 @@ export default async function Image() {
                     കഥാലോകം
                 </div>
 
-                {/* Tagline */}
                 <div
                     style={{
                         fontSize: '32px',
-                        color: '#D4A017', // Brand Gold
+                        color: '#D4A017',
                         fontWeight: 600,
                         marginBottom: '40px',
                     }}
@@ -94,7 +101,6 @@ export default async function Image() {
                     സൗജന്യ മലയാളം ഓഡിയോ കഥകൾ
                 </div>
 
-                {/* Feature Badges Footer */}
                 <div
                     style={{
                         display: 'flex',
@@ -116,7 +122,6 @@ export default async function Image() {
                     <span>🚫 No Ads</span>
                 </div>
 
-                {/* Bottom Domain URL */}
                 <div
                     style={{
                         position: 'absolute',
@@ -127,7 +132,7 @@ export default async function Image() {
                         textTransform: 'uppercase',
                     }}
                 >
-                    kathalokam.vercel.app
+                    kathalokam.com
                 </div>
             </div>
         ),
