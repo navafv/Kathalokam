@@ -1,33 +1,15 @@
 import { ImageResponse } from 'next/og'
 
 export const runtime = 'edge'
-export const alt = 'Kathalokam — Free Malyalam Audio Stories'
+export const alt = 'Kathalokam — Free Malayalam Audio Stories'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
-// Dynamically fetches the active TTF font from Google Fonts API
-async function loadGoogleFont(fontFamily: string, text: string) {
-    const url = `https://fonts.googleapis.com/css2?family=${fontFamily}:wght@700&text=${encodeURIComponent(text)}`
-    const css = await (await fetch(url, {
-        headers: {
-            // Using an older User-Agent forces Google Fonts to return standard TrueType (.ttf) format required by Satori/OG
-            'User-Agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; de-at) AppleWebKit/533.21.1 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1',
-        },
-    })).text()
-
-    const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/)
-    if (resource) {
-        const response = await fetch(resource[1])
-        if (response.status === 200) {
-            return await response.arrayBuffer()
-        }
-    }
-    throw new Error('Failed to load font data from Google Fonts API')
-}
-
 export default async function Image() {
-    // Dynamically load the exact Malayalam font buffer for the text we are rendering
-    const fontData = await loadGoogleFont('Montserrat', 'Kathalokam Free Malyalam Audio Stories')
+    // Correctly fetch local font in Edge Runtime
+    const fontData = await fetch(
+        new URL('../../public/fonts/Montserrat-Bold.ttf', import.meta.url)
+    ).then((res) => res.arrayBuffer())
 
     return new ImageResponse(
         (
@@ -42,12 +24,13 @@ export default async function Image() {
                     backgroundColor: '#1B4332',
                     backgroundImage: 'radial-gradient(circle at 25% 25%, rgba(212, 160, 23, 0.15) 0%, transparent 50%), radial-gradient(circle at 75% 75%, rgba(253, 246, 236, 0.08) 0%, transparent 50%)',
                     color: '#FDF6EC',
-                    fontFamily: "Montserrat",
+                    fontFamily: '"Montserrat"',
                     padding: '60px',
                     textAlign: 'center',
                     position: 'relative',
                 }}
             >
+                {/* Top Border */}
                 <div
                     style={{
                         position: 'absolute',
@@ -59,6 +42,7 @@ export default async function Image() {
                     }}
                 />
 
+                {/* Icon */}
                 <div
                     style={{
                         display: 'flex',
@@ -77,30 +61,24 @@ export default async function Image() {
                     📖
                 </div>
 
+                {/* Main Content (Title and Subtitle) */}
                 <div
                     style={{
-                        fontSize: '84px',
-                        fontWeight: 700,
-                        color: '#FDF6EC',
-                        letterSpacing: '-0.02em',
-                        marginBottom: '16px',
-                        textShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-                    }}
-                >
-                    KATHALOKAM
-                </div>
-
-                <div
-                    style={{
-                        fontSize: '32px',
-                        color: '#D4A017',
-                        fontWeight: 600,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
                         marginBottom: '40px',
                     }}
                 >
-                    Free Malayalam Audio Stories
+                    <div style={{ fontSize: '84px', fontWeight: 700, marginBottom: '16px' }}>
+                        KATHALOKAM
+                    </div>
+                    <div style={{ fontSize: '32px', color: '#D4A017', fontWeight: 600 }}>
+                        Free Malayalam Audio Stories
+                    </div>
                 </div>
 
+                {/* Features Tag */}
                 <div
                     style={{
                         display: 'flex',
@@ -122,6 +100,7 @@ export default async function Image() {
                     <span>🚫 No Ads</span>
                 </div>
 
+                {/* Footer URL */}
                 <div
                     style={{
                         position: 'absolute',
