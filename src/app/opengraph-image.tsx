@@ -87,7 +87,7 @@ export default async function Image() {
                         textShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
                     }}
                 >
-                    കഥാലോകം
+                    KATHALOKAM
                 </div>
 
                 <div
@@ -98,7 +98,7 @@ export default async function Image() {
                         marginBottom: '40px',
                     }}
                 >
-                    സൗജന്യ മലയാളം ഓഡിയോ കഥകൾ
+                    Free Malayalam Audio Stories
                 </div>
 
                 <div
