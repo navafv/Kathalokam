@@ -27,7 +27,7 @@ async function loadGoogleFont(fontFamily: string, text: string) {
 
 export default async function Image() {
     // Dynamically load the exact Malayalam font buffer for the text we are rendering
-    const fontData = await loadGoogleFont('Noto+Serif+Malayalam', 'കഥാലോകം സൗജന്യ മലയാളം ഓഡിയോ കഥകൾ')
+    const fontData = await loadGoogleFont('Noto+Serif+Malayalam', 'Kathalokam Free Malyalam Audio Stories')
 
     return new ImageResponse(
         (
