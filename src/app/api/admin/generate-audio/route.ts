@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import * as googleTTS from 'google-tts-api'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,11 +13,6 @@ export async function POST(request: Request) {
 
         if (!story_id) {
             return NextResponse.json({ success: false, error: 'story_id is required' }, { status: 400 })
-        }
-
-        const apiKey = process.env.GOOGLE_TTS_API_KEY
-        if (!apiKey) {
-            return NextResponse.json({ success: false, error: 'GOOGLE_TTS_API_KEY is missing' }, { status: 500 })
         }
 
         // 1. Fetch all approved episodes for the story
@@ -45,37 +41,25 @@ export async function POST(request: Request) {
                     throw new Error('Script text is empty.')
                 }
 
-                // Call Google Cloud Text-to-Speech REST API
-                const ttsResponse = await fetch(
-                    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            input: { text: ep.script_text },
-                            voice: {
-                                languageCode: 'ml-IN',
-                                name: 'ml-IN-Wavenet-A', // Premium Malayalam voice
-                            },
-                            audioConfig: {
-                                audioEncoding: 'MP3',
-                                speakingRate: 0.9, // Slightly slower for clear storytelling
-                                pitch: 0,
-                            },
-                        }),
-                    }
-                )
+                // Automatically split long script into chunks and fetch free base64 audio
+                const audioChunks = await googleTTS.getAllAudioBase64(ep.script_text, {
+                    lang: 'ml', // Malayalam
+                    slow: false, // Set to true if you want slower narration
+                    host: 'https://translate.google.com',
+                    timeout: 15000,
+                    splitPunct: ',.?!—\n', // Splits cleanly at Malayalam sentence breaks
+                })
 
-                const ttsData = await ttsResponse.json()
-
-                if (!ttsResponse.ok || !ttsData.audioContent) {
-                    throw new Error(ttsData.error?.message || 'Google TTS API synthesis failed.')
+                if (!audioChunks || audioChunks.length === 0) {
+                    throw new Error('Failed to generate free audio chunks.')
                 }
 
-                // Convert base64 audio response to Uint8Array Buffer
-                const audioBuffer = Buffer.from(ttsData.audioContent, 'base64')
+                // Convert all base64 chunks into Buffers and combine them into one MP3 file
+                const audioBuffer = Buffer.concat(
+                    audioChunks.map((chunk) => Buffer.from(chunk.base64, 'base64'))
+                )
 
-                // 3. Upload MP3 to Supabase Storage
+                // 3. Upload combined MP3 to Supabase Storage
                 const filePath = `stories/${story_id}/episode-${ep.episode_number}.mp3`
 
                 const { error: uploadError } = await supabaseAdmin.storage
@@ -94,7 +78,7 @@ export async function POST(request: Request) {
                     .from('audio-stories')
                     .getPublicUrl(filePath)
 
-                // 4. Calculate word count & duration (word_count / 2)
+                // 4. Calculate word count & estimate duration (Malayalam ~120 words/min -> wordCount / 2)
                 const wordCount = ep.script_text.trim().split(/\s+/).filter(Boolean).length
                 const durationSeconds = Math.max(10, Math.ceil(wordCount / 2))
 
@@ -135,7 +119,7 @@ export async function POST(request: Request) {
         await supabaseAdmin.from('admin_logs').insert({
             action: 'generate_audio',
             story_id: story_id,
-            notes: `Audio generated: ${processedCount} succeeded, ${failedCount} failed.`,
+            notes: `Free Audio generated: ${processedCount} succeeded, ${failedCount} failed using google-tts-api.`,
         })
 
         return NextResponse.json({
