@@ -3,14 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Play,
-  Headphones,
-  Sparkles,
-  BookOpen,
-  AlertCircle,
-  Volume2,
-} from 'lucide-react'
+import { Play, Headphones, Sparkles, AlertCircle, Volume2, Mic2 } from 'lucide-react'
 
 interface Story {
   id: string
@@ -24,11 +17,6 @@ interface Story {
   published_at: string
 }
 
-interface ListeningProgress {
-  episodeId: string
-  progress: number // 0-100
-}
-
 const GENRES = [
   { key: 'All', malayalam: 'എല്ലാം', english: 'All', emoji: '✨' },
   { key: 'Thriller', malayalam: 'ത്രില്ലർ', english: 'Thriller', emoji: '🔪' },
@@ -40,53 +28,31 @@ const GENRES = [
   { key: 'Fantasy', malayalam: 'ഫാന്റസി', english: 'Fantasy', emoji: '🧙' },
 ]
 
-// Unique gradient per story (cycles through palette)
-const CARD_GRADIENTS = [
-  'from-emerald-900/80 via-emerald-800/60 to-[#1B4332]/90',
-  'from-[#1B4332]/90 via-amber-900/40 to-emerald-900/80',
-  'from-amber-900/70 via-[#1B4332]/60 to-emerald-800/80',
-  'from-emerald-800/80 via-[#D4A017]/20 to-[#1B4332]/90',
-  'from-[#1B4332]/80 via-emerald-700/40 to-amber-900/60',
-  'from-emerald-900/70 via-[#1B4332]/80 to-amber-800/50',
+const CARD_COLORS = [
+  { from: '#4F1B8C', via: '#7C3AED', to: '#1E0A4A' },
+  { from: '#831843', via: '#DB2777', to: '#3B0764' },
+  { from: '#064E3B', via: '#059669', to: '#1C1038' },
+  { from: '#7C2D12', via: '#EA580C', to: '#1A0A2E' },
+  { from: '#1E3A5F', via: '#2563EB', to: '#0F172A' },
+  { from: '#3B1F63', via: '#9333EA', to: '#0F0A20' },
 ]
 
 function StoryCardSkeleton() {
   return (
-    <div className="rounded-2xl overflow-hidden border border-[#1B4332]/10 bg-white/60 animate-pulse">
-      <div className="aspect-square bg-[#1B4332]/10 shimmer" />
+    <div className="rounded-2xl overflow-hidden glass">
+      <div className="aspect-[3/4] shimmer" />
       <div className="p-4 space-y-3">
-        <div className="h-4 bg-[#1B4332]/10 rounded-full w-3/4 shimmer" />
-        <div className="h-3 bg-[#1B4332]/8 rounded-full w-1/2 shimmer" />
-        <div className="h-3 bg-[#1B4332]/8 rounded-full w-full shimmer" />
-        <div className="flex justify-between items-center pt-2">
-          <div className="h-3 bg-[#D4A017]/20 rounded-full w-16 shimmer" />
-          <div className="w-9 h-9 rounded-full bg-[#1B4332]/10 shimmer" />
-        </div>
+        <div className="h-4 shimmer rounded-full w-3/4" />
+        <div className="h-3 shimmer rounded-full w-1/2" />
+        <div className="h-3 shimmer rounded-full w-full" />
       </div>
     </div>
   )
 }
 
 function isNewStory(publishedAt: string): boolean {
-  const published = new Date(publishedAt)
-  const now = new Date()
-  const diffMs = now.getTime() - published.getTime()
-  const diffDays = diffMs / (1000 * 60 * 60 * 24)
-  return diffDays <= 7
-}
-
-function getStoryProgress(storyId: string, totalEpisodes: number): number {
-  if (typeof window === 'undefined' || totalEpisodes === 0) return 0
-  let completedCount = 0
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key?.startsWith('completed_')) {
-      completedCount++
-    }
-  }
-  // Simplified: check if any progress keys exist for this story's episodes
-  // In a real app you'd track per-story completion
-  return 0
+  const diff = new Date().getTime() - new Date(publishedAt).getTime()
+  return diff / (1000 * 60 * 60 * 24) <= 7
 }
 
 export default function HomePage() {
@@ -94,26 +60,16 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedGenre, setSelectedGenre] = useState('All')
-  const [progressMap, setProgressMap] = useState<Record<string, number>>({})
-  const [mounted, setMounted] = useState(false)
-
   const supabase = createClient()
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    const fetchPublishedStories = async () => {
+    const fetch = async () => {
       try {
         setLoading(true)
-        const { data, error: fetchError } = await supabase
-          .from('stories')
-          .select('*')
-          .eq('status', 'published')
+        const { data, error: e } = await supabase
+          .from('stories').select('*').eq('status', 'published')
           .order('published_at', { ascending: false })
-
-        if (fetchError) throw new Error(fetchError.message)
+        if (e) throw new Error(e.message)
         setStories(data || [])
       } catch (err: any) {
         setError(err.message || 'കഥകൾ ലഭ്യമാക്കുന്നതിൽ പരാജയപ്പെട്ടു.')
@@ -121,164 +77,139 @@ export default function HomePage() {
         setLoading(false)
       }
     }
-    fetchPublishedStories()
+    fetch()
   }, [])
 
   const filteredStories = useMemo(() => {
     if (selectedGenre === 'All') return stories
-    return stories.filter(
-      (story) => story.genre.toLowerCase() === selectedGenre.toLowerCase()
-    )
+    return stories.filter(s => s.genre.toLowerCase() === selectedGenre.toLowerCase())
   }, [stories, selectedGenre])
 
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'കഥാലോകം (Kathalokam)',
-    alternateName: 'Free Malayalam Audio Stories',
     url: 'https://kathalokam.vercel.app',
-    description: 'Listen to free Malayalam audio stories. Thrillers, romance, mystery and more.',
+    description: 'Free Malayalam audio stories — thrillers, romance, mystery and more.',
     inLanguage: 'ml',
   }
 
   return (
-    <div className="min-h-screen flex flex-col font-serif bg-[#FDF6EC] text-[#1B4332]">
+    <div className="min-h-screen flex flex-col bg-[#080C18] text-[#F0F0FF]" style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
       <style>{`
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
+        .wave-bar { animation: waveform 1.2s ease-in-out infinite; transform-origin: bottom; }
+        @keyframes waveform { 0%,100%{transform:scaleY(0.3)} 50%{transform:scaleY(1)} }
+        .float { animation: floatAnim 4s ease-in-out infinite; }
+        @keyframes floatAnim { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        .fade-up { animation: fadeUp 0.5s ease-out forwards; }
+        .mesh-bg {
+          background: radial-gradient(ellipse at 20% 30%, rgba(168,85,247,0.25) 0%, transparent 55%),
+                      radial-gradient(ellipse at 80% 70%, rgba(236,72,153,0.2) 0%, transparent 55%),
+                      radial-gradient(ellipse at 60% 10%, rgba(245,200,66,0.1) 0%, transparent 40%),
+                      #080C18;
         }
-        .shimmer {
-          background: linear-gradient(90deg, transparent 25%, rgba(27,67,50,0.06) 50%, transparent 75%);
-          background-size: 200% 100%;
-          animation: shimmer 1.6s infinite;
-        }
-        @keyframes wave {
-          0%, 100% { transform: scaleY(0.4); }
-          50% { transform: scaleY(1); }
-        }
-        .wave-bar { animation: wave 1.2s ease-in-out infinite; }
-        .wave-bar:nth-child(1) { animation-delay: 0s; }
-        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
-        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
-        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
-        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
-        .wave-bar:nth-child(6) { animation-delay: 0.3s; }
-        .wave-bar:nth-child(7) { animation-delay: 0.2s; }
-        .wave-bar:nth-child(8) { animation-delay: 0.1s; }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-6px); }
-        }
-        .float { animation: float 3s ease-in-out infinite; }
+        .card-glow:hover { box-shadow: 0 0 40px rgba(168,85,247,0.2); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .fade-slide-up { animation: fadeSlideUp 0.5s ease-out forwards; }
+        .no-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
+        .genre-pill { transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
+        .genre-pill.active { background: linear-gradient(135deg,#A855F7,#EC4899); box-shadow: 0 0 20px rgba(168,85,247,0.4); }
       `}</style>
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* ─── STICKY HEADER ─────────────────────────────────────────── */}
-      <header className="border-b border-[#1B4332]/15 bg-[#FDF6EC]/85 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-3">
+      {/* ── HEADER ── */}
+      <header className="sticky top-0 z-50 border-b border-white/[0.06]" style={{ background: 'rgba(8,12,24,0.85)', backdropFilter: 'blur(24px)' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#1B4332] text-[#D4A017] flex items-center justify-center shadow-md flex-shrink-0">
-              <Headphones className="h-5 w-5" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)' }}>
+              <Headphones className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-[family-name:var(--font-malayalam)] text-[#1B4332]">
-              കഥാലോകം
-            </h1>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white"
+                style={{ fontFamily: 'var(--font-malayalam)' }}>
+                കഥാലോകം
+              </h1>
+            </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1B4332]/5 border border-[#1B4332]/15">
-            <Sparkles className="h-3.5 w-3.5 text-[#D4A017] animate-pulse" />
-            <span className="text-xs font-semibold font-[family-name:var(--font-malayalam)] tracking-wide text-[#1B4332]">
+          <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full"
+            style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)' }}>
+            <Sparkles className="h-3.5 w-3.5 text-purple-400 animate-pulse" />
+            <span className="text-xs font-semibold text-purple-300 tracking-wide"
+              style={{ fontFamily: 'var(--font-malayalam)' }}>
               സൗജന്യ മലയാളം ഓഡിയോ കഥകൾ
             </span>
           </div>
         </div>
       </header>
 
-      {/* ─── HERO SECTION ──────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-[#1B4332] text-[#FDF6EC] py-14 sm:py-20 px-4 sm:px-6">
-        {/* CSS-only decorative pattern background */}
-        <div
-          className="absolute inset-0 opacity-[0.06]"
-          style={{
-            backgroundImage: `radial-gradient(circle at 20% 50%, #D4A017 1px, transparent 1px),
-              radial-gradient(circle at 80% 20%, #D4A017 1px, transparent 1px),
-              radial-gradient(circle at 60% 80%, #D4A017 1px, transparent 1px)`,
-            backgroundSize: '60px 60px, 80px 80px, 50px 50px',
-          }}
-        />
-        {/* Subtle warm glow */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#D4A017]/10 via-transparent to-emerald-900/30 pointer-events-none" />
+      {/* ── HERO ── */}
+      <section className="relative overflow-hidden mesh-bg py-16 sm:py-24 px-4 sm:px-6">
+        {/* Decorative orbs */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full opacity-20 blur-3xl pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #A855F7, transparent)' }} />
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 rounded-full opacity-15 blur-3xl pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #EC4899, transparent)' }} />
 
-        <div className="relative max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
-          <div className="flex-1 text-center lg:text-left space-y-5">
+        <div className="relative max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
+          <div className="flex-1 text-center lg:text-left space-y-6">
+
             {/* Animated waveform */}
-            <div className="flex items-end justify-center lg:justify-start gap-1 h-10 mb-2">
-              {[40, 70, 55, 90, 65, 80, 50, 70].map((h, i) => (
-                <div
-                  key={i}
-                  className="wave-bar w-1.5 rounded-full bg-[#D4A017]/70"
-                  style={{ height: `${h}%`, animationDelay: `${i * 0.1}s` }}
-                />
+            <div className="flex items-end justify-center lg:justify-start gap-1 h-8">
+              {[30, 60, 45, 80, 55, 70, 40, 65, 35, 55].map((h, i) => (
+                <div key={i} className="wave-bar rounded-full"
+                  style={{ width: '3px', height: `${h}%`, background: `linear-gradient(to top,#A855F7,#EC4899)`, animationDelay: `${i * 0.1}s` }} />
               ))}
-              <Volume2 className="h-5 w-5 text-[#D4A017]/60 ml-2 self-center" />
+              <Volume2 className="h-4 w-4 text-purple-400/60 ml-2 self-center" />
             </div>
 
-            <div>
-              <p className="text-[#D4A017] font-semibold text-sm sm:text-base tracking-widest uppercase mb-2 font-sans">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest"
+                style={{ background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', color: '#C084FC' }}>
+                <Mic2 className="h-3 w-3" />
                 Malayalam Audio Stories
-              </p>
-              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold font-[family-name:var(--font-malayalam)] leading-tight text-[#FDF6EC]">
-                കഥകളുടെ ലോകത്തേക്ക് സ്വാഗതം
+              </div>
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold leading-tight"
+                style={{ fontFamily: 'var(--font-malayalam)', color: '#F0F0FF' }}>
+                കഥകളുടെ{' '}
+                <span style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899,#F5C842)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                  ലോകത്തേക്ക്
+                </span>
               </h2>
-              <p className="text-base sm:text-lg text-[#FDF6EC]/70 font-sans mt-3 max-w-xl lg:mx-0 mx-auto leading-relaxed">
-                Welcome to the world of stories — free Malayalam audio stories spanning thrillers, romance, mystery, and more. All AI-crafted, entirely free.
+              <p className="text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed" style={{ color: 'rgba(240,240,255,0.6)' }}>
+                Immerse yourself in free AI-crafted Malayalam audio stories — thrillers, romance, mystery, and more. No subscription, no ads, forever free.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3 justify-center lg:justify-start pt-2">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#D4A017]/20 border border-[#D4A017]/30">
-                <span className="text-[#D4A017] text-lg">📖</span>
-                <span className="font-[family-name:var(--font-malayalam)] text-sm font-semibold text-[#FDF6EC]">
-                  സൗജന്യം · Free
-                </span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/15">
-                <span className="text-lg">🎧</span>
-                <span className="text-sm font-semibold text-[#FDF6EC]/85 font-sans">
-                  No subscription
-                </span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/15">
-                <span className="text-lg">✨</span>
-                <span className="text-sm font-semibold text-[#FDF6EC]/85 font-sans">
-                  AI-crafted
-                </span>
-              </div>
+            <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
+              {[
+                { icon: '🎧', label: 'No Subscription', color: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.3)', text: '#C084FC' },
+                { icon: '✨', label: 'AI-Crafted', color: 'rgba(236,72,153,0.15)', border: 'rgba(236,72,153,0.3)', text: '#F472B6' },
+                { icon: '📖', label: '100% Free · സൗജന്യം', color: 'rgba(245,200,66,0.12)', border: 'rgba(245,200,66,0.3)', text: '#FCD34D', ml: true },
+              ].map(b => (
+                <div key={b.label} className="flex items-center gap-2 px-4 py-2 rounded-full"
+                  style={{ background: b.color, border: `1px solid ${b.border}`, color: b.text, fontFamily: b.ml ? 'var(--font-malayalam)' : undefined }}>
+                  <span>{b.icon}</span>
+                  <span className="text-xs font-semibold">{b.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Decorative book stack */}
-          <div className="float flex-shrink-0 hidden sm:flex flex-col items-center gap-3">
-            <div className="w-36 h-36 lg:w-44 lg:h-44 rounded-2xl bg-gradient-to-br from-[#D4A017]/30 via-amber-800/20 to-emerald-900/40 border border-[#D4A017]/30 flex items-center justify-center text-7xl lg:text-8xl shadow-2xl">
+          {/* Floating stats */}
+          <div className="float flex-shrink-0 hidden sm:flex flex-col items-center gap-4">
+            <div className="w-40 h-40 lg:w-52 lg:h-52 rounded-3xl flex items-center justify-center text-7xl lg:text-8xl shadow-2xl"
+              style={{ background: 'linear-gradient(135deg,rgba(168,85,247,0.2),rgba(236,72,153,0.15))', border: '1px solid rgba(168,85,247,0.3)', backdropFilter: 'blur(20px)' }}>
               📚
             </div>
             <div className="text-center">
-              <div className="text-3xl font-extrabold text-[#D4A017] font-sans">
+              <div className="text-4xl font-extrabold"
+                style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                 {stories.length > 0 ? `${stories.length}+` : '∞'}
               </div>
-              <div className="font-[family-name:var(--font-malayalam)] text-sm text-[#FDF6EC]/70">
+              <div className="text-sm font-semibold mt-1" style={{ color: 'rgba(240,240,255,0.5)', fontFamily: 'var(--font-malayalam)' }}>
                 കഥകൾ
               </div>
             </div>
@@ -286,43 +217,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ─── MAIN CONTENT ──────────────────────────────────────────── */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* ── MAIN ── */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
 
-        {/* Genre Scroll — Rich Cards */}
+        {/* Genre pills */}
         <div>
-          <h3 className="text-sm font-bold font-sans uppercase tracking-widest text-[#1B4332]/50 mb-3 px-0.5">
+          <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: 'rgba(240,240,255,0.3)' }}>
             Browse by Genre
-          </h3>
-          <div className="flex items-stretch gap-3 overflow-x-auto pb-2 no-scrollbar snap-x snap-mandatory">
-            {GENRES.map((genre) => {
-              const isSelected = selectedGenre === genre.key
+          </p>
+          <div className="flex items-center gap-2.5 overflow-x-auto pb-2 no-scrollbar">
+            {GENRES.map((g) => {
+              const active = selectedGenre === g.key
               return (
-                <button
-                  key={genre.key}
-                  onClick={() => setSelectedGenre(genre.key)}
-                  className={`
-                    relative flex-shrink-0 snap-start flex flex-col items-center justify-center gap-1.5
-                    w-20 sm:w-24 py-3 px-2 rounded-xl border transition-all duration-200
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A017] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FDF6EC]
-                    min-h-[72px]
-                    ${isSelected
-                      ? 'bg-[#1B4332] border-[#1B4332] shadow-lg text-[#FDF6EC]'
-                      : 'bg-white/80 border-[#1B4332]/15 hover:border-[#1B4332]/40 hover:bg-white text-[#1B4332]'
-                    }
-                  `}
-                  aria-pressed={isSelected}
-                >
-                  <span className="text-2xl leading-none">{genre.emoji}</span>
-                  <span className={`text-[10px] font-bold font-[family-name:var(--font-malayalam)] leading-tight text-center ${isSelected ? 'text-[#D4A017]' : 'text-[#1B4332]'}`}>
-                    {genre.malayalam}
-                  </span>
-                  <span className={`text-[9px] font-sans leading-tight ${isSelected ? 'text-[#FDF6EC]/70' : 'text-[#1B4332]/50'}`}>
-                    {genre.english}
-                  </span>
-                  {isSelected && (
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#D4A017] rounded-full" />
-                  )}
+                <button key={g.key} onClick={() => setSelectedGenre(g.key)}
+                  className={`genre-pill flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 min-h-[44px] ${active ? 'active text-white border-transparent' : 'text-white/60 border-white/10 hover:border-white/20 hover:text-white/80'}`}
+                  style={active ? {} : { background: 'rgba(255,255,255,0.04)' }}
+                  aria-pressed={active}>
+                  <span className="text-base">{g.emoji}</span>
+                  <span style={{ fontFamily: 'var(--font-malayalam)' }}>{g.malayalam}</span>
                 </button>
               )
             })}
@@ -332,156 +244,130 @@ export default function HomePage() {
         {/* Section header */}
         {!loading && !error && filteredStories.length > 0 && (
           <div className="flex items-center justify-between">
-            <h2 className="text-xl sm:text-2xl font-bold font-[family-name:var(--font-malayalam)] text-[#1B4332]">
+            <h2 className="text-xl sm:text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-malayalam)' }}>
               {selectedGenre === 'All' ? 'എല്ലാ കഥകളും' : GENRES.find(g => g.key === selectedGenre)?.malayalam || selectedGenre}
             </h2>
-            <span className="text-sm font-sans font-semibold text-[#1B4332]/50">
+            <span className="text-sm font-semibold" style={{ color: 'rgba(240,240,255,0.35)' }}>
               {filteredStories.length} {filteredStories.length === 1 ? 'story' : 'stories'}
             </span>
           </div>
         )}
 
-        {/* Loading — Shimmer Skeleton */}
+        {/* Loading skeletons */}
         {loading && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <StoryCardSkeleton key={i} />
-            ))}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+            {Array.from({ length: 8 }).map((_, i) => <StoryCardSkeleton key={i} />)}
           </div>
         )}
 
-        {/* Error State */}
+        {/* Error */}
         {error && !loading && (
-          <div className="max-w-md mx-auto my-12 p-6 bg-red-50 border border-red-200 rounded-2xl text-center text-red-800 font-sans shadow-sm">
-            <AlertCircle className="h-8 w-8 mx-auto mb-2 text-red-600" />
-            <p className="text-sm font-semibold font-[family-name:var(--font-malayalam)]">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2.5 bg-[#1B4332] text-[#FDF6EC] text-xs font-semibold rounded-lg hover:bg-[#1B4332]/90 transition min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332]"
-            >
-              വീണ്ടും ശ്രമിക്കുക (Retry)
+          <div className="max-w-md mx-auto my-12 p-8 rounded-2xl text-center space-y-4"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <AlertCircle className="h-10 w-10 mx-auto text-red-400" />
+            <p className="text-sm font-semibold text-red-300" style={{ fontFamily: 'var(--font-malayalam)' }}>{error}</p>
+            <button onClick={() => window.location.reload()}
+              className="px-5 py-2.5 rounded-xl text-sm font-bold text-white min-h-[44px]"
+              style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)' }}>
+              വീണ്ടും ശ്രമിക്കുക
             </button>
           </div>
         )}
 
-        {/* Empty State */}
+        {/* Empty */}
         {!loading && !error && filteredStories.length === 0 && (
-          <div className="py-20 text-center space-y-3 font-sans fade-slide-up">
-            <div className="w-20 h-20 bg-[#1B4332]/5 rounded-full flex items-center justify-center mx-auto text-4xl">
-              📭
-            </div>
-            <h3 className="text-lg font-bold font-[family-name:var(--font-malayalam)] text-[#1B4332]">
+          <div className="py-24 text-center space-y-4 fade-up">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto text-4xl"
+              style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)' }}>📭</div>
+            <h3 className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-malayalam)' }}>
               കഥകൾ ഒന്നും ലഭ്യമല്ല
             </h3>
-            <p className="text-xs text-[#1B4332]/60 max-w-sm mx-auto">
-              No stories found in "{selectedGenre}" yet. More are being crafted — check back soon!
+            <p className="text-sm max-w-sm mx-auto" style={{ color: 'rgba(240,240,255,0.45)' }}>
+              No stories in "{selectedGenre}" yet. More are being crafted — check back soon!
             </p>
-            <button
-              onClick={() => setSelectedGenre('All')}
-              className="mt-3 px-5 py-2.5 bg-[#1B4332] text-[#FDF6EC] text-sm font-semibold rounded-full hover:bg-[#1B4332]/90 transition min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332]"
-            >
+            <button onClick={() => setSelectedGenre('All')} className="mt-3 px-6 py-3 rounded-full text-sm font-bold text-white min-h-[44px]"
+              style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)' }}>
               Show all stories
             </button>
           </div>
         )}
 
-        {/* Stories Grid */}
+        {/* Stories grid */}
         {!loading && !error && filteredStories.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
             {filteredStories.map((story, index) => {
-              const gradient = CARD_GRADIENTS[index % CARD_GRADIENTS.length]
+              const color = CARD_COLORS[index % CARD_COLORS.length]
               const isNew = isNewStory(story.published_at)
-              const progressPct = progressMap[story.id] || 0
 
               return (
-                <Link
-                  key={story.id}
-                  href={`/story/${story.id}`}
-                  className="group rounded-2xl overflow-hidden border border-[#1B4332]/15 bg-white/90 hover:bg-white shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A017] focus-visible:ring-offset-2 fade-slide-up"
-                  style={{ animationDelay: `${index * 60}ms` }}
-                  aria-label={`${story.title_malayalam} — ${story.title_english || ''}`}
-                >
-                  {/* Square cover art */}
-                  <div className={`relative aspect-square bg-gradient-to-br ${gradient} flex flex-col items-center justify-center overflow-hidden`}>
-                    {/* Pattern overlay */}
-                    <div
-                      className="absolute inset-0 opacity-20"
-                      style={{
-                        backgroundImage: 'radial-gradient(circle, rgba(212,160,23,0.3) 1px, transparent 1px)',
-                        backgroundSize: '16px 16px',
-                      }}
-                    />
+                <Link key={story.id} href={`/story/${story.id}`}
+                  className="group rounded-2xl overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080C18] fade-up card-glow transition-all duration-300"
+                  style={{ border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', animationDelay: `${index * 50}ms` }}
+                  aria-label={`${story.title_malayalam} — ${story.title_english || ''}`}>
 
-                    {/* Emoji */}
-                    <span className="relative z-10 text-5xl sm:text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-lg">
+                  {/* Cover */}
+                  <div className="relative aspect-[3/4] flex flex-col items-center justify-center overflow-hidden"
+                    style={{ background: `linear-gradient(160deg, ${color.from}, ${color.via}, ${color.to})` }}>
+
+                    {/* Dot pattern */}
+                    <div className="absolute inset-0 opacity-30"
+                      style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
+
+                    {/* Glow orb */}
+                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full blur-2xl opacity-50"
+                      style={{ background: color.via }} />
+
+                    <span className="relative z-10 text-5xl sm:text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-2xl">
                       {story.cover_emoji || '📖'}
                     </span>
 
-                    {/* Genre label */}
-                    <div className="absolute bottom-0 left-0 right-0 px-3 py-2 bg-gradient-to-t from-black/40 to-transparent">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#D4A017] font-sans">
+                    {/* Genre chip */}
+                    <div className="absolute bottom-3 left-3">
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full"
+                        style={{ background: 'rgba(0,0,0,0.4)', color: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)' }}>
                         {story.genre}
                       </span>
                     </div>
 
-                    {/* "New" badge in Malayalam */}
+                    {/* New badge */}
                     {isNew && (
-                      <div className="absolute top-2.5 right-2.5 bg-[#D4A017] text-[#1B4332] px-2 py-0.5 rounded-full text-[9px] font-bold font-[family-name:var(--font-malayalam)] shadow-md">
-                        പുതിയത്
+                      <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[9px] font-bold"
+                        style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)', color: 'white' }}>
+                        NEW
                       </div>
                     )}
 
-                    {/* Play button overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/20">
-                      <div className="w-12 h-12 rounded-full bg-[#D4A017] flex items-center justify-center shadow-xl transform scale-90 group-hover:scale-100 transition-transform duration-200">
-                        <Play className="h-5 w-5 fill-[#1B4332] text-[#1B4332] ml-0.5" />
+                    {/* Play overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300"
+                      style={{ background: 'rgba(0,0,0,0.35)' }}>
+                      <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl scale-90 group-hover:scale-100 transition-transform duration-300"
+                        style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)' }}>
+                        <Play className="h-5 w-5 fill-white text-white ml-0.5" />
                       </div>
                     </div>
                   </div>
 
-                  {/* Card body */}
-                  <div className="flex flex-col flex-1 p-3 sm:p-4 space-y-2">
-                    <div className="flex-1 space-y-1">
-                      <h2 className="text-sm sm:text-base font-bold font-[family-name:var(--font-malayalam)] leading-snug text-[#1B4332] line-clamp-2 group-hover:text-[#1B4332] transition-colors">
-                        {story.title_malayalam}
-                      </h2>
-                      {story.title_english && (
-                        <p className="text-[11px] font-sans font-medium text-[#1B4332]/55 line-clamp-1 italic">
-                          {story.title_english}
-                        </p>
-                      )}
-                      {story.description && (
-                        <p className="text-[11px] font-sans text-[#1B4332]/65 line-clamp-2 mt-1 leading-relaxed hidden sm:block">
-                          {story.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Meta */}
-                    <div className="pt-1 flex items-center justify-between gap-2 font-sans">
-                      <span className="text-[10px] font-semibold text-[#1B4332]/60">
-                        {story.total_episodes} {story.total_episodes === 1 ? 'ep' : 'eps'}
-                      </span>
-                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1B4332] group-hover:bg-[#1B4332]/90 text-[#FDF6EC] flex items-center justify-center shadow-sm flex-shrink-0 transition-colors min-h-[44px] min-w-[44px] -mr-1 -mb-1">
-                        <Play className="h-3.5 w-3.5 fill-current ml-0.5" />
-                      </div>
-                    </div>
-
-                    {/* Progress bar */}
-                    {progressPct > 0 && (
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-[9px] font-sans text-[#1B4332]/50">
-                          <span>Progress</span>
-                          <span>{Math.round(progressPct)}%</span>
-                        </div>
-                        <div className="h-1 bg-[#1B4332]/10 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#D4A017] rounded-full transition-all duration-500"
-                            style={{ width: `${progressPct}%` }}
-                          />
-                        </div>
-                      </div>
+                  {/* Body */}
+                  <div className="p-3 sm:p-4 space-y-2">
+                    <h2 className="text-sm sm:text-base font-bold leading-snug line-clamp-2 text-white"
+                      style={{ fontFamily: 'var(--font-malayalam)' }}>
+                      {story.title_malayalam}
+                    </h2>
+                    {story.title_english && (
+                      <p className="text-[11px] font-medium italic line-clamp-1" style={{ color: 'rgba(240,240,255,0.4)' }}>
+                        {story.title_english}
+                      </p>
                     )}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                        style={{ background: 'rgba(168,85,247,0.15)', color: '#C084FC' }}>
+                        {story.total_episodes} eps
+                      </span>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                        style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)' }}>
+                        <Play className="h-3.5 w-3.5 fill-white text-white ml-0.5" />
+                      </div>
+                    </div>
                   </div>
                 </Link>
               )
@@ -490,21 +376,22 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* ─── FOOTER ────────────────────────────────────────────────── */}
-      <footer className="border-t border-[#1B4332]/15 bg-[#FDF6EC] py-8 mt-8">
-        <div className="max-w-6xl mx-auto px-4 text-center font-sans space-y-1">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-full bg-[#1B4332] text-[#D4A017] flex items-center justify-center">
-              <Headphones className="h-4 w-4" />
+      {/* ── FOOTER ── */}
+      <footer className="border-t py-10 mt-8" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-3">
+          <div className="flex items-center justify-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg,#A855F7,#EC4899)' }}>
+              <Headphones className="h-4 w-4 text-white" />
             </div>
-            <span className="font-[family-name:var(--font-malayalam)] font-bold text-[#1B4332]">
+            <span className="font-bold text-lg text-white" style={{ fontFamily: 'var(--font-malayalam)' }}>
               കഥാലോകം
             </span>
           </div>
-          <p className="text-xs font-semibold text-[#1B4332]/60 tracking-wide">
+          <p className="text-xs font-semibold tracking-wide" style={{ color: 'rgba(240,240,255,0.35)' }}>
             Malayalam AI Stories · 100% Free · No ads · No subscription
           </p>
-          <p className="text-[10px] text-[#1B4332]/35">
+          <p className="text-[10px]" style={{ color: 'rgba(240,240,255,0.2)' }}>
             Built with love for Malayalam literature lovers everywhere.
           </p>
         </div>
