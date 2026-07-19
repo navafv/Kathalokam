@@ -392,8 +392,8 @@ export default function StoryReviewPage({ params }: { params: { id: string } }) 
                                     key={ep.id}
                                     onClick={() => setSelectedEpisode(ep)}
                                     className={`p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-3 ${isSelected
-                                            ? 'bg-slate-900 text-white border-slate-900 shadow-md'
-                                            : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 shadow-sm'
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+                                        : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 shadow-sm'
                                         }`}
                                 >
                                     <div className="flex items-start justify-between gap-2">
@@ -428,8 +428,8 @@ export default function StoryReviewPage({ params }: { params: { id: string } }) 
                                                     disabled={isApproving}
                                                     title="Approve Episode"
                                                     className={`p-1.5 rounded-md transition ${isSelected
-                                                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                                                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
                                                         }`}
                                                 >
                                                     {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
@@ -441,8 +441,8 @@ export default function StoryReviewPage({ params }: { params: { id: string } }) 
                                                 disabled={isRegenerating}
                                                 title="Regenerate Script with AI"
                                                 className={`p-1.5 rounded-md transition ${isSelected
-                                                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                                                     }`}
                                             >
                                                 {isRegenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
@@ -573,7 +573,7 @@ export default function StoryReviewPage({ params }: { params: { id: string } }) 
                             <button
                                 onClick={() => {
                                     setShowAudioModal(false)
-                                    router.push(`/admin/stories/${storyId}/audio`) // Optional routing to TTS page
+                                    router.push(`/admin/stories/${storyId}/generate-audio`)
                                 }}
                                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition"
                             >

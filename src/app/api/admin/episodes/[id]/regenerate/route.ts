@@ -1,15 +1,29 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY!,
-})
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+
+function extractCleanJson(rawText: string): any {
+    let cleaned = rawText
+        .replace(/^```json\s*/im, '')
+        .replace(/\s*```$/im, '')
+        .trim()
+
+    const firstBrace = cleaned.indexOf('{')
+    const lastBrace = cleaned.lastIndexOf('}')
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleaned = cleaned.substring(firstBrace, lastBrace + 1)
+    }
+
+    return JSON.parse(cleaned)
+}
 
 export async function POST(
     request: Request,
@@ -18,7 +32,6 @@ export async function POST(
     try {
         const episodeId = params.id
 
-        // 1. Fetch episode and parent story context
         const { data: episode, error: fetchError } = await supabaseAdmin
             .from('episodes')
             .select('*, stories(*)')
@@ -30,44 +43,34 @@ export async function POST(
         }
 
         const story = episode.stories
-
-        // 2. Build Claude regeneration prompt
         const systemPrompt = `You are a professional Malayalam story writer. Rewrite this specific episode script in pure, natural Malayalam script. Use clear conversational yet literary syntax optimized for Text-to-Speech narration. End the episode with an emotional hook or cliffhanger.`
 
         const userPrompt = `We are regenerating Episode ${episode.episode_number} ("${episode.title_malayalam || 'Untitled'}") for the ${story.genre} story titled "${story.title_english}" (${story.title_malayalam}).
 Story Description: ${story.description}
 
 Please write a fresh, engaging script for Episode ${episode.episode_number} in pure Malayalam.
-Return ONLY a JSON object in this exact format with no extra markdown or explanations:
+Return ONLY a JSON object matching this schema:
 {
   "title_malayalam": "updated episode title in Malayalam",
   "script_text": "the complete rewritten Malayalam script..."
 }`
 
-        // 3. Call Claude API
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 4096,
-            temperature: 0.7,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPrompt }],
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-3.5-flash',
+            systemInstruction: systemPrompt,
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.7 },
         })
 
-        const rawContent = response.content[0].type === 'text' ? response.content[0].text : ''
-        const cleanedJson = rawContent
-            .replace(/^```json\s*/i, '')
-            .replace(/\s*```$/, '')
-            .trim()
+        const result = await model.generateContent(userPrompt)
+        const rawText = result.response.text()
+        const regeneratedData = extractCleanJson(rawText)
 
-        const regeneratedData = JSON.parse(cleanedJson)
-
-        // 4. Update episode in Supabase
         const { data: updatedEpisode, error: updateError } = await supabaseAdmin
             .from('episodes')
             .update({
                 title_malayalam: regeneratedData.title_malayalam || episode.title_malayalam,
                 script_text: regeneratedData.script_text,
-                status: 'draft', // Reset to draft on regeneration
+                status: 'draft',
             })
             .eq('id', episodeId)
             .select('*')
@@ -77,12 +80,11 @@ Return ONLY a JSON object in this exact format with no extra markdown or explana
             throw new Error(`Failed to update episode: ${updateError.message}`)
         }
 
-        // 5. Log action
         await supabaseAdmin.from('admin_logs').insert({
             action: 'generate_script',
             story_id: story.id,
             episode_id: episodeId,
-            notes: `Regenerated script for Episode ${episode.episode_number} using claude-sonnet-4-6.`,
+            notes: `Regenerated script for Episode ${episode.episode_number} using gemini-3.5-flash.`,
         })
 
         return NextResponse.json({ success: true, episode: updatedEpisode })

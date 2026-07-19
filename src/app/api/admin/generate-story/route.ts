@@ -1,24 +1,38 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-// Initialize Supabase admin client with service role for write access
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Initialize Anthropic SDK client
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY!,
-})
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+
+// Helper function to safely extract and parse JSON from LLM output
+function extractCleanJson(rawText: string): any {
+    // Strip markdown formatting if present
+    let cleaned = rawText
+        .replace(/^```json\s*/im, '')
+        .replace(/\s*```$/im, '')
+        .trim()
+
+    // Isolate only the outer JSON object boundaries
+    const firstBrace = cleaned.indexOf('{')
+    const lastBrace = cleaned.lastIndexOf('}')
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleaned = cleaned.substring(firstBrace, lastBrace + 1)
+    }
+
+    return JSON.parse(cleaned)
+}
 
 export async function POST(request: Request) {
     try {
         const body = await request.json()
         const { genre, episodes, theme, audience, length } = body
 
-        // Map audio length to approximate Malayalam word counts (~100 words/min)
         const wordCountMap: Record<string, number> = {
             'Short (3–5 min)': 400,
             'Medium (8–10 min)': 900,
@@ -31,7 +45,7 @@ export async function POST(request: Request) {
         const userPrompt = `Write a complete ${genre} story in Malayalam with ${episodes} episodes.
 Theme hint: ${theme || 'None provided, create an original compelling plot'}. Audience: ${audience}. Each episode should be ${length} minutes when read aloud (approximately ${wordCount} Malayalam words per episode).
 
-Return ONLY a JSON object in this exact format, no explanation:
+Return ONLY a JSON object matching this schema:
 {
   "title_malayalam": "story title in Malayalam",
   "title_english": "English translation of the title",
@@ -46,23 +60,20 @@ Return ONLY a JSON object in this exact format, no explanation:
   ]
 }`
 
-        // Call Anthropic Claude API
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 8192,
-            temperature: 0.7,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPrompt }],
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-3.5-flash',
+            systemInstruction: systemPrompt,
+            generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.7,
+            },
         })
 
-        // Extract text content and clean potential markdown formatting
-        const rawContent = response.content[0].type === 'text' ? response.content[0].text : ''
-        const cleanedJson = rawContent
-            .replace(/^```json\s*/i, '')
-            .replace(/\s*```$/, '')
-            .trim()
+        const result = await model.generateContent(userPrompt)
+        const rawText = result.response.text()
 
-        const storyData = JSON.parse(cleanedJson)
+        // Safely parse the response using our extractor
+        const storyData = extractCleanJson(rawText)
 
         // 1. Insert Story into Supabase
         const { data: story, error: storyError } = await supabaseAdmin
@@ -105,7 +116,7 @@ Return ONLY a JSON object in this exact format, no explanation:
         await supabaseAdmin.from('admin_logs').insert({
             action: 'generate_script',
             story_id: story.id,
-            notes: `AI Generated story "${storyData.title_english}" with ${episodes} episodes using claude-sonnet-4-6.`,
+            notes: `AI Generated story "${storyData.title_english}" with ${episodes} episodes using gemini-3.5-flash.`,
         })
 
         return NextResponse.json({
